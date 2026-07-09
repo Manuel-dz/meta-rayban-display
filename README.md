@@ -75,6 +75,52 @@ en su lugar dejé el botón **"‹ Menú"** siempre alcanzable con un solo
 movimiento del Neural Band (arriba/pellizco índice) desde cualquier pantalla
 de estudio.
 
+## Audio: solución final (mp3 pregenerados, sin servicios en vivo)
+
+Después de tres intentos con servicios en tiempo real que fallaron por
+razones distintas de la plataforma...
+
+| Intento | Por qué falló |
+|---|---|
+| `speechSynthesis` (Web Speech API) | Android WebView —lo que usan las Web Apps de Ray-Ban Display— no la implementa en absoluto |
+| Google Translate TTS (endpoint no oficial) | Google lo dio de baja desde 2023, ya no responde para nadie |
+| Puter.js (Amazon Polly gratis) | Su flujo de login usa una ventana emergente que no puede completarse en el navegador restringido de las gafas — la llamada se queda colgada |
+
+...la solución que **sí es robusta**: generar los audios **una sola vez, de
+antemano**, como archivos mp3 reales empaquetados junto con la app. En las
+gafas solo se reproduce un archivo local (`audio/xxxx.mp3`), exactamente
+igual de simple que cargar `data.js` — sin red, sin cuentas, sin políticas de
+bloqueo de por medio.
+
+### Cómo generarlos (una sola vez, en tu computadora)
+
+```
+pip install edge-tts
+python generate_audio.py
+```
+
+Esto usa las voces gratuitas de Microsoft Edge (`edge-tts`, sin API key) para
+generar ~5,400 clips únicos (cubren las 6,179 tarjetas) en una carpeta
+`audio/`, más un archivo `audio_map.js` con el mapa tarjeta → audio. Tarda
+varios minutos la primera vez; si se interrumpe, puedes volver a correrlo y
+no repetirá los clips que ya se generaron.
+
+Después, sube también `audio/` y `audio_map.js` a tu hosting junto con los
+demás archivos, y las gafas reproducirán el audio real sin depender de
+internet en el momento de estudiar (el mp3 ya está guardado ahí mismo).
+
+⚠️ Nota de honestidad: `edge-tts` también es una librería no documentada
+oficialmente por Microsoft (usa las voces de "Léer en voz alta" de Edge por
+detrás), aunque es mucho más estable y ampliamente usada que el endpoint de
+Google que se dio de baja. Si en el futuro deja de funcionar, la alternativa
+sólida sería una API de TTS oficial con tu propia key (Azure Speech, Google
+Cloud TTS) — solo habría que cambiar la función `synth_one()` dentro de
+`generate_audio.py`; el resto de la app no cambiaría.
+
+Mientras no generes los audios, la app sigue funcionando normal (mazos,
+calificación, progreso) solo sin sonido, y en escritorio seguirá usando la
+voz del navegador como antes para que puedas seguir probando.
+
 ## Solución de problemas: audio y gestos (actualización 4 — cambio de servicio de voz)
 
 **Causa raíz encontrada:** el servicio que usaba antes

@@ -313,18 +313,23 @@ function finishSession() {
 }
 
 // ---------- Audio por las bocinas ----------
-// Las Ray-Ban Display corren las Web Apps dentro de un Android WebView, y
-// Android WebView NO implementa la Web Speech API (speechSynthesis) — es una
-// limitación conocida de la plataforma, no de esta app. Por eso: en
-// escritorio (donde sí existe) usamos speechSynthesis; en las gafas caemos
-// automáticamente a Puter.js (https://puter.com), que expone voces reales
-// (Amazon Polly, incluida "Mizuki" en japonés) sin necesitar una API key
-// propia. (Antes esta app usaba el endpoint no oficial de Google Translate,
-// pero Google lo dio de baja desde 2023 — por eso nunca respondía.)
+// Historial de lo que NO funcionó, para que quede claro por qué se llegó a
+// esta solución:
+//   1) speechSynthesis (Web Speech API): Android WebView, que es lo que usan
+//      las Web Apps de Ray-Ban Display, no la implementa en absoluto.
+//   2) Google Translate TTS (endpoint no oficial): dado de baja por Google
+//      desde 2023, ya no responde para nadie.
+//   3) Puter.js (Amazon Polly gratis): su flujo requiere una ventana de
+//      inicio de sesión que no puede completarse en el navegador restringido
+//      de las gafas — la llamada se queda colgada esperando para siempre.
+//
+// Solución: los audios se generan UNA VEZ de antemano (ver generate_audio.py)
+// como archivos mp3 reales, empaquetados junto con la app. En tiempo real
+// solo se reproduce un <audio src="audio/xxxx.mp3"> local — igual de simple
+// que cargar data.js, sin red ni cuentas de por medio.
 
-const HAS_NATIVE_TTS = ('speechSynthesis' in window);
+const HAS_NATIVE_TTS = ('speechSynthesis' in window); // solo como respaldo en escritorio
 let japaneseVoice = null;
-let voicesReady = false;
 let audioUnlocked = false;
 
 if (HAS_NATIVE_TTS) {
@@ -332,7 +337,6 @@ if (HAS_NATIVE_TTS) {
     const voices = window.speechSynthesis.getVoices();
     if (voices && voices.length) {
       japaneseVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('ja')) || null;
-      voicesReady = true;
     }
   };
   loadVoices();
@@ -344,39 +348,30 @@ function setAudioStatus(text) {
   if (el) el.textContent = text;
 }
 
-function playViaPuter(text, testMode, onOk, onFail) {
-  if (typeof puter === 'undefined' || !puter.ai || !puter.ai.txt2speech) {
-    onFail && onFail('Puter.js no cargó (revisa internet)');
-    return;
+function hasLocalClips() {
+  return !!(window.AUDIO_MAP && Object.keys(window.AUDIO_MAP).length);
+}
+
+function playLocalClip(front, onOk, onFail) {
+  const path = window.AUDIO_MAP && window.AUDIO_MAP[front];
+  if (!path) { onFail && onFail('no hay clip para esta tarjeta'); return; }
+  const audioEl = document.getElementById('tts-audio');
+  audioEl.onerror = null;
+  audioEl.src = path;
+  const p = audioEl.play();
+  if (p && p.then) {
+    p.then(() => onOk && onOk()).catch(err => onFail && onFail(err.message || 'reproducción bloqueada'));
+  } else {
+    onOk && onOk();
   }
-  puter.ai.txt2speech(text, { provider: 'aws-polly', voice: 'Mizuki', language: 'ja-JP', testMode: !!testMode })
-    .then(audio => {
-      const p = audio.play();
-      if (p && p.then) { p.then(() => onOk && onOk()).catch(err => onFail && onFail(err.message || 'reproducción bloqueada')); }
-      else { onOk && onOk(); }
-    })
-    .catch(err => onFail && onFail((err && err.message) || 'sin respuesta del servicio'));
 }
 
 // Debe llamarse directamente dentro del handler del gesto (Enter/click) del
 // botón de prueba para que cuente como interacción real del usuario y
 // desbloquee el audio en ese navegador.
 function unlockAudio() {
-  if (HAS_NATIVE_TTS) {
-    window.speechSynthesis.cancel();
-    const test = new SpeechSynthesisUtterance('こんにちは');
-    test.lang = 'ja-JP';
-    if (japaneseVoice) test.voice = japaneseVoice;
-    test.onstart = () => { audioUnlocked = true; setAudioStatus('✅ audio activado (voz del navegador)'); };
-    test.onerror = () => { setAudioStatus('⚠️ el navegador bloqueó el audio — revisa volumen'); };
-    setTimeout(() => { if (!audioUnlocked) setAudioStatus('⚠️ toca de nuevo o revisa el volumen'); }, 1500);
-    window.speechSynthesis.speak(test);
-    return;
-  }
-
-  // Paso 1: beep local embebido (data URI, no requiere internet). Si esto
-  // falla, el problema es que ESTE navegador bloquea la reproducción de audio
-  // en general (política de autoplay/gesto), sin importar la fuente.
+  // Paso 1: beep local embebido (data URI). Si esto falla, el navegador
+  // bloquea la reproducción de audio en general, sin importar la fuente.
   setAudioStatus('🔄 paso 1/2: probando audio local…');
   const audioEl = document.getElementById('tts-audio');
   audioEl.onerror = null;
@@ -384,10 +379,15 @@ function unlockAudio() {
   const localPlay = audioEl.play();
 
   const runStep2 = () => {
-    setAudioStatus('✅ paso 1 ok · probando voz en línea (Puter/Polly)…');
-    playViaPuter('こんにちは', true,
-      () => { audioUnlocked = true; setAudioStatus('✅ audio activado (necesita internet)'); },
-      (why) => { setAudioStatus('⚠️ paso 1 ok, pero la voz en línea falló: ' + why); }
+    if (!hasLocalClips()) {
+      setAudioStatus('✅ paso 1 ok · aún no generaste los audios (ver README: generate_audio.py)');
+      return;
+    }
+    setAudioStatus('✅ paso 1 ok · probando un clip de vocabulario…');
+    const sample = Object.keys(window.AUDIO_MAP)[0];
+    playLocalClip(sample,
+      () => { audioUnlocked = true; setAudioStatus('✅ audio activado'); },
+      (why) => { setAudioStatus('⚠️ paso 1 ok, pero el clip de ejemplo falló: ' + why); }
     );
   };
   const step1Failed = (why) => {
@@ -404,6 +404,13 @@ function unlockAudio() {
 function speakCard(card) {
   const text = card && card.front;
   if (!text) return;
+  if (hasLocalClips() && window.AUDIO_MAP[text]) {
+    playLocalClip(text, null, (why) => setAudioStatus && setAudioStatus('⚠️ ' + why));
+    return;
+  }
+  // Respaldo mientras no generas los mp3 (o para una tarjeta sin clip):
+  // en escritorio esto suena con la voz del sistema; en las gafas no hace
+  // nada (Android WebView no soporta speechSynthesis), silenciosamente.
   if (HAS_NATIVE_TTS) {
     try {
       window.speechSynthesis.cancel();
@@ -413,8 +420,6 @@ function speakCard(card) {
       if (japaneseVoice) utter.voice = japaneseVoice;
       window.speechSynthesis.speak(utter);
     } catch (e) { /* ignorar */ }
-  } else {
-    playViaPuter(text, false, null, (why) => setAudioStatus('⚠️ sin audio: ' + why));
   }
 }
 
