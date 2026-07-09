@@ -75,6 +75,30 @@ en su lugar dejé el botón **"‹ Menú"** siempre alcanzable con un solo
 movimiento del Neural Band (arriba/pellizco índice) desde cualquier pantalla
 de estudio.
 
+## Solución de problemas: audio y gestos (actualización 3 — diagnóstico en 2 pasos)
+
+Si sigue sin sonar, el botón "🔊 Probar / activar audio" ahora hace **dos
+pruebas separadas** para saber exactamente dónde está el problema:
+
+1. **Paso 1 — beep local:** reproduce un tono corto guardado dentro de la
+   propia app (no necesita internet). Si esto **falla**, significa que el
+   navegador de las gafas está bloqueando la reproducción de audio en
+   general — probablemente el volumen de medios está en silencio/muy bajo
+   en las gafas, o hay una política de autoplay que el gesto del Neural Band
+   no logra "desbloquear" igual que un toque directo en pantalla.
+2. **Paso 2 — servicio en línea:** si el paso 1 sí suena, intenta el mismo
+   texto en japonés generado por internet. Si **este** falla pero el paso 1
+   funcionó, el problema es de red/conectividad (o que el servicio gratuito
+   de Google esté bloqueando esa solicitud), no de las gafas.
+
+Cuéntame exactamente qué mensaje te da cada paso (por ejemplo "❌ este
+navegador bloquea todo audio" vs "✅ paso 1 ok, pero el servicio en línea no
+respondió") para saber si hay que:
+- revisar el volumen de medios de las gafas específicamente (aparte del
+  volumen general),
+- confirmar que las gafas tengan datos/WiFi activos en ese momento, o
+- cambiar el servicio de TTS por uno que si funcione desde ese navegador.
+
 ## Solución de problemas: audio y gestos (actualización 2)
 
 **Diagnóstico real:** las Web Apps de Ray-Ban Display corren dentro de un
