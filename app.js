@@ -317,14 +317,10 @@ function finishSession() {
 // Android WebView NO implementa la Web Speech API (speechSynthesis) — es una
 // limitación conocida de la plataforma, no de esta app. Por eso: en
 // escritorio (donde sí existe) usamos speechSynthesis; en las gafas caemos
-// automáticamente a reproducir un mp3 generado al vuelo por un servicio de
-// texto-a-voz, usando un <audio> normal (que sí funciona en WebView).
-//
-// Nota: el endpoint usado abajo (Google Translate TTS) es un servicio NO
-// oficial y gratuito, sin API key. Es útil para prototipos pero puede
-// cambiar, tener límites de uso, o requerir conexión a internet activa en
-// las gafas. Para algo de producción, lo ideal sería una API de TTS oficial
-// (Google Cloud TTS, Azure Speech, ElevenLabs, etc.) con tu propia API key.
+// automáticamente a Puter.js (https://puter.com), que expone voces reales
+// (Amazon Polly, incluida "Mizuki" en japonés) sin necesitar una API key
+// propia. (Antes esta app usaba el endpoint no oficial de Google Translate,
+// pero Google lo dio de baja desde 2023 — por eso nunca respondía.)
 
 const HAS_NATIVE_TTS = ('speechSynthesis' in window);
 let japaneseVoice = null;
@@ -348,23 +344,18 @@ function setAudioStatus(text) {
   if (el) el.textContent = text;
 }
 
-function remoteTtsUrl(text) {
-  // Servicio no oficial, sin key. tl=ja fuerza acento japonés.
-  return 'https://translate.google.com/translate_tts?ie=UTF-8&tl=ja&client=tw-ob&q=' + encodeURIComponent(text);
-}
-
-function playRemoteTts(text, onOk, onFail) {
-  const audioEl = document.getElementById('tts-audio');
-  if (!audioEl) { onFail && onFail(); return; }
-  audioEl.onerror = () => onFail && onFail();
-  audioEl.oncanplay = null;
-  audioEl.src = remoteTtsUrl(text);
-  const p = audioEl.play();
-  if (p && p.then) {
-    p.then(() => onOk && onOk()).catch(() => onFail && onFail());
-  } else {
-    onOk && onOk();
+function playViaPuter(text, testMode, onOk, onFail) {
+  if (typeof puter === 'undefined' || !puter.ai || !puter.ai.txt2speech) {
+    onFail && onFail('Puter.js no cargó (revisa internet)');
+    return;
   }
+  puter.ai.txt2speech(text, { provider: 'aws-polly', voice: 'Mizuki', language: 'ja-JP', testMode: !!testMode })
+    .then(audio => {
+      const p = audio.play();
+      if (p && p.then) { p.then(() => onOk && onOk()).catch(err => onFail && onFail(err.message || 'reproducción bloqueada')); }
+      else { onOk && onOk(); }
+    })
+    .catch(err => onFail && onFail((err && err.message) || 'sin respuesta del servicio'));
 }
 
 // Debe llamarse directamente dentro del handler del gesto (Enter/click) del
@@ -393,10 +384,10 @@ function unlockAudio() {
   const localPlay = audioEl.play();
 
   const runStep2 = () => {
-    setAudioStatus('✅ paso 1 ok · probando servicio en línea…');
-    playRemoteTts('こんにちは',
+    setAudioStatus('✅ paso 1 ok · probando voz en línea (Puter/Polly)…');
+    playViaPuter('こんにちは', true,
       () => { audioUnlocked = true; setAudioStatus('✅ audio activado (necesita internet)'); },
-      () => { setAudioStatus('⚠️ paso 1 ok, pero el servicio en línea no respondió — revisa internet de las gafas'); }
+      (why) => { setAudioStatus('⚠️ paso 1 ok, pero la voz en línea falló: ' + why); }
     );
   };
   const step1Failed = (why) => {
@@ -406,7 +397,6 @@ function unlockAudio() {
   if (localPlay && localPlay.then) {
     localPlay.then(runStep2).catch(err => step1Failed(err && err.name ? err.name : 'reproducción rechazada'));
   } else {
-    // Navegadores viejos sin promesa: asumimos que sí sonó
     runStep2();
   }
 }
@@ -424,7 +414,7 @@ function speakCard(card) {
       window.speechSynthesis.speak(utter);
     } catch (e) { /* ignorar */ }
   } else {
-    playRemoteTts(text, null, () => setAudioStatus('⚠️ sin audio — revisa internet'));
+    playViaPuter(text, false, null, (why) => setAudioStatus('⚠️ sin audio: ' + why));
   }
 }
 

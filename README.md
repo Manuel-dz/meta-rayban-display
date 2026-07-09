@@ -75,6 +75,32 @@ en su lugar dejé el botón **"‹ Menú"** siempre alcanzable con un solo
 movimiento del Neural Band (arriba/pellizco índice) desde cualquier pantalla
 de estudio.
 
+## Solución de problemas: audio y gestos (actualización 4 — cambio de servicio de voz)
+
+**Causa raíz encontrada:** el servicio que usaba antes
+(`translate.google.com/translate_tts`) es un endpoint no oficial que
+**Google dio de baja desde mediados de 2023** por seguridad. Ya no responde
+de forma confiable para nadie — no era un problema de tus gafas ni de tu
+internet, el servicio simplemente ya no funciona. Por eso el diagnóstico dio
+"paso 1 ok" (tu audio local sí funciona) pero "el servicio en línea no
+respondió" (porque ese servicio lleva años apagado).
+
+**Solución aplicada:** cambié el proveedor de voz en línea a
+[Puter.js](https://puter.com) (`js.puter.com/v2`), que expone voces reales de
+Amazon Polly —incluida una voz japonesa nativa ("Mizuki")— sin necesitar que
+tú configures una API key. Es un servicio activo y mantenido en 2026, a
+diferencia del anterior.
+
+⚠️ Una cosa a vigilar: Puter usa un modelo "el usuario paga su propio uso" —
+la primera vez que se use en tus gafas, es posible que aparezca una ventana
+pidiendo iniciar sesión o crear una cuenta gratuita de Puter antes de dejar
+pasar el audio. Como las gafas solo navegan con flechas/Enter (sin teclado
+para escribir), si esa ventana pide texto podría ser incómoda de completar
+ahí mismo. Si eso pasa, dime exactamente qué aparece en pantalla — puede que
+haya que autorizarlo una vez desde el navegador del teléfono, o cambiar a un
+enfoque sin cuentas (por ejemplo, generar y empaquetar clips de audio fijos
+para el vocabulario más usado, en vez de generar voz al vuelo).
+
 ## Solución de problemas: audio y gestos (actualización 3 — diagnóstico en 2 pasos)
 
 Si sigue sin sonar, el botón "🔊 Probar / activar audio" ahora hace **dos
