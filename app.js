@@ -311,24 +311,33 @@ function finishSession() {
     `Repasaste ${state.sessionDone} tarjetas de "${state.deckTitle}".`;
 }
 
-// ---------- TTS por las bocinas ----------
-// El Enter que llega desde el Neural Band no siempre cuenta como "gesto de
-// usuario" para el navegador, así que el audio puede quedarse bloqueado
-// hasta que haya un desbloqueo explícito (ver unlockAudio / botón "Probar audio").
-let audioUnlocked = false;
+// ---------- Audio por las bocinas ----------
+// Las Ray-Ban Display corren las Web Apps dentro de un Android WebView, y
+// Android WebView NO implementa la Web Speech API (speechSynthesis) — es una
+// limitación conocida de la plataforma, no de esta app. Por eso: en
+// escritorio (donde sí existe) usamos speechSynthesis; en las gafas caemos
+// automáticamente a reproducir un mp3 generado al vuelo por un servicio de
+// texto-a-voz, usando un <audio> normal (que sí funciona en WebView).
+//
+// Nota: el endpoint usado abajo (Google Translate TTS) es un servicio NO
+// oficial y gratuito, sin API key. Es útil para prototipos pero puede
+// cambiar, tener límites de uso, o requerir conexión a internet activa en
+// las gafas. Para algo de producción, lo ideal sería una API de TTS oficial
+// (Google Cloud TTS, Azure Speech, ElevenLabs, etc.) con tu propia API key.
+
+const HAS_NATIVE_TTS = ('speechSynthesis' in window);
 let japaneseVoice = null;
 let voicesReady = false;
+let audioUnlocked = false;
 
-function loadVoices() {
-  if (!('speechSynthesis' in window)) return;
-  const voices = window.speechSynthesis.getVoices();
-  if (voices && voices.length) {
-    japaneseVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('ja')) || null;
-    voicesReady = true;
-  }
-}
-
-if ('speechSynthesis' in window) {
+if (HAS_NATIVE_TTS) {
+  const loadVoices = () => {
+    const voices = window.speechSynthesis.getVoices();
+    if (voices && voices.length) {
+      japaneseVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('ja')) || null;
+      voicesReady = true;
+    }
+  };
   loadVoices();
   window.speechSynthesis.onvoiceschanged = loadVoices;
 }
@@ -338,47 +347,62 @@ function setAudioStatus(text) {
   if (el) el.textContent = text;
 }
 
-// Debe llamarse directamente dentro del handler del gesto (Enter/click) del
-// botón de prueba, para que cuente como interacción real del usuario.
-function unlockAudio() {
-  if (!('speechSynthesis' in window)) {
-    setAudioStatus('no disponible en este navegador');
-    return;
+function remoteTtsUrl(text) {
+  // Servicio no oficial, sin key. tl=ja fuerza acento japonés.
+  return 'https://translate.google.com/translate_tts?ie=UTF-8&tl=ja&client=tw-ob&q=' + encodeURIComponent(text);
+}
+
+function playRemoteTts(text, onOk, onFail) {
+  const audioEl = document.getElementById('tts-audio');
+  if (!audioEl) { onFail && onFail(); return; }
+  audioEl.onerror = () => onFail && onFail();
+  audioEl.oncanplay = null;
+  audioEl.src = remoteTtsUrl(text);
+  const p = audioEl.play();
+  if (p && p.then) {
+    p.then(() => onOk && onOk()).catch(() => onFail && onFail());
+  } else {
+    onOk && onOk();
   }
-  loadVoices();
-  window.speechSynthesis.cancel();
-  const test = new SpeechSynthesisUtterance('こんにちは');
-  test.lang = 'ja-JP';
-  test.volume = 1;
-  test.rate = 0.9;
-  if (japaneseVoice) test.voice = japaneseVoice;
+}
 
-  test.onstart = () => { audioUnlocked = true; setAudioStatus('✅ audio activado'); };
-  test.onerror = (e) => {
-    setAudioStatus(voicesReady && !japaneseVoice
-      ? '⚠️ no hay voz en japonés instalada'
-      : '⚠️ sin sonido — revisa volumen de las gafas');
-  };
-  // Si ni siquiera dispara onstart/onerror en ~1.5s, algo bloqueó el audio
-  setTimeout(() => {
-    if (!audioUnlocked) setAudioStatus('⚠️ toca de nuevo o revisa el volumen');
-  }, 1500);
-
-  window.speechSynthesis.speak(test);
+// Debe llamarse directamente dentro del handler del gesto (Enter/click) del
+// botón de prueba para que cuente como interacción real del usuario y
+// desbloquee el audio en ese navegador.
+function unlockAudio() {
+  if (HAS_NATIVE_TTS) {
+    window.speechSynthesis.cancel();
+    const test = new SpeechSynthesisUtterance('こんにちは');
+    test.lang = 'ja-JP';
+    if (japaneseVoice) test.voice = japaneseVoice;
+    test.onstart = () => { audioUnlocked = true; setAudioStatus('✅ audio activado (voz del navegador)'); };
+    test.onerror = () => { setAudioStatus('⚠️ el navegador bloqueó el audio — revisa volumen'); };
+    setTimeout(() => { if (!audioUnlocked) setAudioStatus('⚠️ toca de nuevo o revisa el volumen'); }, 1500);
+    window.speechSynthesis.speak(test);
+  } else {
+    setAudioStatus('🔄 probando audio en línea…');
+    playRemoteTts('こんにちは',
+      () => { audioUnlocked = true; setAudioStatus('✅ audio activado (necesita internet)'); },
+      () => { setAudioStatus('⚠️ sin sonido — revisa internet y volumen de las gafas'); }
+    );
+  }
 }
 
 function speakCard(card) {
-  try {
-    if (!('speechSynthesis' in window)) return;
-    const text = card.front;
-    if (!text) return;
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'ja-JP';
-    utter.rate = 0.85;
-    if (japaneseVoice) utter.voice = japaneseVoice;
-    window.speechSynthesis.speak(utter);
-  } catch (e) { /* TTS no disponible en este navegador */ }
+  const text = card && card.front;
+  if (!text) return;
+  if (HAS_NATIVE_TTS) {
+    try {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'ja-JP';
+      utter.rate = 0.85;
+      if (japaneseVoice) utter.voice = japaneseVoice;
+      window.speechSynthesis.speak(utter);
+    } catch (e) { /* ignorar */ }
+  } else {
+    playRemoteTts(text, null, () => setAudioStatus('⚠️ sin audio — revisa internet'));
+  }
 }
 
 function repeatAudio() {

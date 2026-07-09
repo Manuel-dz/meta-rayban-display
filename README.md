@@ -75,6 +75,38 @@ en su lugar dejé el botón **"‹ Menú"** siempre alcanzable con un solo
 movimiento del Neural Band (arriba/pellizco índice) desde cualquier pantalla
 de estudio.
 
+## Solución de problemas: audio y gestos (actualización 2)
+
+**Diagnóstico real:** las Web Apps de Ray-Ban Display corren dentro de un
+**Android WebView**, y Android WebView **no implementa la Web Speech API**
+(`speechSynthesis`) — es una limitación documentada de esa plataforma en
+general, no algo específico de esta app ni de tus gafas. Por eso en la
+computadora (Chrome de escritorio, que sí la soporta) funcionaba, y en las
+gafas aparecía "no disponible en este navegador".
+
+**Solución aplicada:** la app ahora detecta si `speechSynthesis` existe.
+- Si existe (computadora, la mayoría de navegadores de escritorio): usa la
+  voz nativa del sistema, igual que antes.
+- Si no existe (las gafas): reproduce en su lugar un archivo de audio real
+  generado al vuelo por un servicio de texto-a-voz en línea, usando un
+  elemento `<audio>` normal (que sí funciona en WebView). Esto **requiere que
+  las gafas tengan conexión a internet activa** (datos del teléfono
+  emparejado o WiFi).
+
+  ⚠️ El servicio usado (`translate.google.com/translate_tts`) es un endpoint
+  **no oficial y gratuito**, sin necesidad de API key — perfecto para
+  prototipar, pero Google podría cambiarlo, limitarlo o bloquearlo sin
+  aviso. Si en el futuro deja de funcionar o quieres algo más confiable para
+  uso diario, la alternativa es una API de TTS oficial (Google Cloud
+  Text-to-Speech, Azure Speech, ElevenLabs, etc.) — todas requieren crear una
+  cuenta y una API key propia (con costo por uso, aunque casi siempre hay un
+  nivel gratuito).
+
+**Sobre el pellizco de dedo medio:** sigue reservado por el sistema
+operativo de las gafas para su menú universal — ninguna Web App de terceros
+puede interceptarlo. El botón "‹ Menú" queda siempre a un solo movimiento
+del pellizco índice normal.
+
 ## Sobre el audio
 
 Las Web Apps de Ray-Ban Display **no tienen acceso al micrófono** (aún no lo
