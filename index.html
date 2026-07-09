@@ -122,8 +122,11 @@
   <div class="screen active" id="menu">
     <h1>先生 Anki Sensei</h1>
     <div class="subtitle">Elige un mazo para estudiar</div>
+    <button class="focusable" id="audio-test-btn" data-action="test-audio" style="margin-bottom:8px;">
+      <span class="deck-name">🔊 Probar / activar audio</span><span class="deck-count" id="audio-status">toca aquí primero</span>
+    </button>
     <div class="list" id="deck-list"></div>
-    <div class="hint">Neural Band: arriba/abajo · pellizco = Enter</div>
+    <div class="hint">Neural Band: arriba/abajo · pellizco índice = Enter · el pellizco medio abre el menú de Meta, no "volver"</div>
   </div>
 
   <!-- SUBMENU: temas of Minna no Nihongo -->
@@ -153,13 +156,13 @@
     </div>
 
     <div class="reveal-row" id="reveal-row">
-      <button class="focusable reveal-btn" id="reveal-btn" data-action="reveal">Mostrar respuesta</button>
+      <button class="focusable reveal-btn" id="reveal-btn" data-action="reveal" data-default-focus="true">Mostrar respuesta</button>
     </div>
 
     <div class="grade-row" id="grade-row" style="display:none;">
       <button class="focusable grade-btn grade-again" data-grade="1"><span class="grade-label">Otra vez</span><span class="grade-interval" id="int-1"></span></button>
       <button class="focusable grade-btn grade-hard" data-grade="2"><span class="grade-label">Difícil</span><span class="grade-interval" id="int-2"></span></button>
-      <button class="focusable grade-btn grade-good" data-grade="3"><span class="grade-label">Bien</span><span class="grade-interval" id="int-3"></span></button>
+      <button class="focusable grade-btn grade-good" data-grade="3" data-default-focus="true"><span class="grade-label">Bien</span><span class="grade-interval" id="int-3"></span></button>
       <button class="focusable grade-btn grade-easy" data-grade="4"><span class="grade-label">Fácil</span><span class="grade-interval" id="int-4"></span></button>
     </div>
   </div>

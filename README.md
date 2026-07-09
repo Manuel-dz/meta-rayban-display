@@ -54,6 +54,27 @@ El progreso se guarda en `localStorage` **por mazo**, así que las gafas
 recuerdan qué tarjetas ya dominaste y cuáles están pendientes, igual que el
 scheduler real de Anki (SM-2 simplificado).
 
+## Solución de problemas: audio y gestos (actualización)
+
+**¿Por qué no sonaba el audio?** El evento `Enter` que el sistema genera al
+hacer pellizco con el Neural Band no siempre cuenta como un "gesto de
+usuario" confiable para que el navegador desbloquee el audio la primera vez
+(es una protección estándar contra reproducción automática). Por eso agregué
+un botón **"🔊 Probar / activar audio"** arriba del menú principal: selecciónalo
+y confírmalo una vez al abrir la app, y verás en pantalla si quedó activado,
+si falta la voz japonesa instalada en las gafas, o si el problema es solo el
+volumen del dispositivo. Después de esa primera activación, el resto de las
+tarjetas deberían sonar solas.
+
+**¿Por qué no puedo usar el pellizco de dedo medio para "volver"?** Ese gesto
+está **reservado por el sistema operativo de las gafas**: siempre abre el
+menú universal de Meta (salir de la app, ver ajustes, etc.), y ese evento
+nunca llega al código de la Web App — ninguna Web App de terceros puede
+interceptarlo, es una limitación de la plataforma, no de esta app. Por eso
+en su lugar dejé el botón **"‹ Menú"** siempre alcanzable con un solo
+movimiento del Neural Band (arriba/pellizco índice) desde cualquier pantalla
+de estudio.
+
 ## Sobre el audio
 
 Las Web Apps de Ray-Ban Display **no tienen acceso al micrófono** (aún no lo

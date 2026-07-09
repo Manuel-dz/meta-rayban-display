@@ -144,6 +144,9 @@ function showScreen(name) {
 }
 
 function focusFirst() {
+  const activeScreen = document.querySelector('.screen.active');
+  const preferred = activeScreen && activeScreen.querySelector('.focusable[data-default-focus="true"]');
+  if (preferred && preferred.offsetParent !== null) { preferred.focus(); return; }
   const focusables = getFocusables();
   if (focusables.length) focusables[0].focus();
 }
@@ -159,11 +162,12 @@ function getFocusables() {
 function renderMenu() {
   const list = document.getElementById('deck-list');
   list.innerHTML = '';
-  DECKS.forEach(d => {
+  DECKS.forEach((d, i) => {
     const btn = document.createElement('button');
     btn.className = 'focusable';
     btn.dataset.action = 'select-deck';
     btn.dataset.deck = d.key;
+    if (i === 0) btn.dataset.defaultFocus = 'true';
 
     let countLabel = '';
     if (!d.hasSub) {
@@ -191,7 +195,7 @@ function renderSubmenu() {
   const list = document.getElementById('tema-list');
   list.innerHTML = '';
   const temas = Object.keys(window.ANKI_DATA.minna.subdecks).sort();
-  temas.forEach(tema => {
+  temas.forEach((tema, i) => {
     const deckKey = 'minna:' + tema;
     const cards = getDeckCards(deckKey);
     const st = loadDeckState(deckKey);
@@ -206,6 +210,7 @@ function renderSubmenu() {
     btn.className = 'focusable';
     btn.dataset.action = 'select-deck';
     btn.dataset.deck = deckKey;
+    if (i === 0) btn.dataset.defaultFocus = 'true';
     btn.innerHTML = `<span class="deck-name">${tema}</span><span class="deck-count">${dueCount} pend · ${newCount} nuevas</span>`;
     list.appendChild(btn);
   });
@@ -307,15 +312,71 @@ function finishSession() {
 }
 
 // ---------- TTS por las bocinas ----------
+// El Enter que llega desde el Neural Band no siempre cuenta como "gesto de
+// usuario" para el navegador, así que el audio puede quedarse bloqueado
+// hasta que haya un desbloqueo explícito (ver unlockAudio / botón "Probar audio").
+let audioUnlocked = false;
+let japaneseVoice = null;
+let voicesReady = false;
+
+function loadVoices() {
+  if (!('speechSynthesis' in window)) return;
+  const voices = window.speechSynthesis.getVoices();
+  if (voices && voices.length) {
+    japaneseVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('ja')) || null;
+    voicesReady = true;
+  }
+}
+
+if ('speechSynthesis' in window) {
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+function setAudioStatus(text) {
+  const el = document.getElementById('audio-status');
+  if (el) el.textContent = text;
+}
+
+// Debe llamarse directamente dentro del handler del gesto (Enter/click) del
+// botón de prueba, para que cuente como interacción real del usuario.
+function unlockAudio() {
+  if (!('speechSynthesis' in window)) {
+    setAudioStatus('no disponible en este navegador');
+    return;
+  }
+  loadVoices();
+  window.speechSynthesis.cancel();
+  const test = new SpeechSynthesisUtterance('こんにちは');
+  test.lang = 'ja-JP';
+  test.volume = 1;
+  test.rate = 0.9;
+  if (japaneseVoice) test.voice = japaneseVoice;
+
+  test.onstart = () => { audioUnlocked = true; setAudioStatus('✅ audio activado'); };
+  test.onerror = (e) => {
+    setAudioStatus(voicesReady && !japaneseVoice
+      ? '⚠️ no hay voz en japonés instalada'
+      : '⚠️ sin sonido — revisa volumen de las gafas');
+  };
+  // Si ni siquiera dispara onstart/onerror en ~1.5s, algo bloqueó el audio
+  setTimeout(() => {
+    if (!audioUnlocked) setAudioStatus('⚠️ toca de nuevo o revisa el volumen');
+  }, 1500);
+
+  window.speechSynthesis.speak(test);
+}
+
 function speakCard(card) {
   try {
     if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
     const text = card.front;
     if (!text) return;
+    window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'ja-JP';
     utter.rate = 0.85;
+    if (japaneseVoice) utter.voice = japaneseVoice;
     window.speechSynthesis.speak(utter);
   } catch (e) { /* TTS no disponible en este navegador */ }
 }
@@ -370,6 +431,8 @@ function activateFocused() {
     revealAnswer();
   } else if (action === 'listen') {
     repeatAudio();
+  } else if (action === 'test-audio') {
+    unlockAudio();
   } else if (el.dataset.grade) {
     gradeCurrent(parseInt(el.dataset.grade, 10));
   }
