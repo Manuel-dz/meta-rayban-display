@@ -75,6 +75,25 @@ en su lugar dejé el botón **"‹ Menú"** siempre alcanzable con un solo
 movimiento del Neural Band (arriba/pellizco índice) desde cualquier pantalla
 de estudio.
 
+## Corrección: el script ahora guarda el progreso poco a poco
+
+Si cierras la Terminal (o se duerme la Mac) antes de que termine, antes se
+perdía todo el mapeo porque `audio_map.js` solo se escribía **al final**.
+Ahora `generate_audio.py` actualiza `audio_map.js` después de cada lote de
+~200 clips, incluyendo solo las tarjetas cuyo mp3 ya existe. Así, aunque se
+interrumpa, lo que ya se generó queda utilizable de inmediato — no hace
+falta esperar a que termine todo para subir un primer avance.
+
+**Vuelve a correr el script** (reutilizará tus 375 mp3 ya generados, no los
+regenera):
+```
+python3 generate_audio.py
+```
+Esta vez espera a ver el mensaje **"✅ Listo. Este mensaje SOLO aparece si el
+script terminó completo."** antes de cerrar la Terminal. Si tu Mac se duerme
+sola durante procesos largos, abre otra ventana de Terminal y corre
+`caffeinate` mientras el script trabaja, para que no se interrumpa.
+
 ## Audio: solución final (mp3 pregenerados, sin servicios en vivo)
 
 Después de tres intentos con servicios en tiempo real que fallaron por

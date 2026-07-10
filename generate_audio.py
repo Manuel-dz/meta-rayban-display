@@ -115,6 +115,14 @@ async def main():
 
     os.makedirs(AUDIO_DIR, exist_ok=True)
 
+    def save_map():
+        ready = {front: path for front, path in mapping.items() if os.path.exists(path)}
+        with open(MAP_FILE, "w", encoding="utf-8") as f:
+            f.write("window.AUDIO_MAP = ")
+            json.dump(ready, f, ensure_ascii=False)
+            f.write(";\n")
+        return len(ready)
+
     semaphore = asyncio.Semaphore(CONCURRENCY)
     stats = {"ok": 0, "failed": 0, "skipped": 0}
     tasks = []
@@ -124,19 +132,25 @@ async def main():
 
     total = len(tasks)
     batch_size = 200
+    print(f"\n⏳ Esto tardará varios minutos ({total} clips). NO cierres esta "
+          f"ventana de Terminal hasta que veas el mensaje '✅ Listo.' al final.\n"
+          f"Tip: si tu Mac se puede dormir sola, corre en otra Terminal "
+          f"'caffeinate' mientras esto termina, para que no se interrumpa.\n")
+
     for i in range(0, total, batch_size):
         batch = tasks[i:i + batch_size]
         await asyncio.gather(*batch)
         done = min(i + batch_size, total)
         print(f"  progreso: {done}/{total} "
               f"(ok={stats['ok']} saltados={stats['skipped']} fallidos={stats['failed']})")
+        # Guardamos el mapa YA MISMO tras cada lote: si el script se corta a
+        # medias (se cierra la Terminal, se duerme la Mac, etc.), lo que ya
+        # se generó queda utilizable en vez de perderse.
+        ready_count = save_map()
+        print(f"    -> audio_map.js actualizado: {ready_count} tarjetas listas para sonar ahora mismo")
 
-    with open(MAP_FILE, "w", encoding="utf-8") as f:
-        f.write("window.AUDIO_MAP = ")
-        json.dump(mapping, f, ensure_ascii=False)
-        f.write(";\n")
-
-    print("\n✅ Listo.")
+    save_map()
+    print("\n✅ Listo. Este mensaje SOLO aparece si el script terminó completo.")
     print(f"   - Carpeta '{AUDIO_DIR}/' con {stats['ok'] + stats['skipped']} archivos mp3")
     print(f"   - Archivo '{MAP_FILE}' con el mapa tarjeta → audio")
     if stats["failed"]:
